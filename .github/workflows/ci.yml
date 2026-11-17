@@ -39,6 +39,12 @@ jobs:
           cargo fmt --check --manifest-path bench/Cargo.toml
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo clippy --all-targets --manifest-path charls-ref/Cargo.toml -- -D warnings
+      - name: The documentation builds, with every public item documented
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --no-deps --locked
+      - name: The package crates.io would get builds on its own
+        run: cargo publish --dry-run --locked
 
   test:
     runs-on: ubuntu-26.04

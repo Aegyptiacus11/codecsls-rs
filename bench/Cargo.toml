@@ -10,7 +10,7 @@ publish = false
 
 [dependencies]
 codecsls = { path = ".." }
-charls = { version = "=0.4.2", features = ["static"] }
+charls-ref = { path = "../charls-ref" }
 pure_jpegls = { package = "pure_jpegls", version = "=2.1.0" }
 dicom-toolkit-codec = "=0.5.0"
 dicom-object = "0.10"

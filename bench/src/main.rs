@@ -36,18 +36,18 @@ fn encode(codec: usize, s: &Slice) -> Result<Vec<u8>, String> {
             &s.native,
         )
         .map_err(|e| e.to_string()),
-        1 => charls::CharLS::default()
-            .encode(
-                charls::FrameInfo {
-                    width: s.cols,
-                    height: s.rows,
-                    bits_per_sample: i32::from(s.bits),
-                    component_count: 1,
-                },
-                0,
-                &s.native,
-            )
-            .map_err(|e| e.to_string()),
+        1 => charls_ref::encode(
+            charls_ref::Image {
+                width: s.cols,
+                height: s.rows,
+                bits_per_sample: s.bits,
+                components: 1,
+            },
+            0,
+            charls_ref::Interleave::None,
+            &s.native,
+        )
+        .map_err(|e| format!("{e:?}")),
         2 => {
             let px: Vec<u16> = if s.wide {
                 s.native
@@ -76,9 +76,7 @@ fn decode(codec: usize, s: &Slice, bytes: &[u8]) -> Result<Vec<u8>, String> {
         0 => codecsls::jpegls::decode(bytes)
             .map(|(_, pixels)| pixels)
             .map_err(|e| e.to_string()),
-        1 => charls::CharLS::default()
-            .decode(bytes)
-            .map_err(|e| e.to_string()),
+        1 => charls_ref::decode(bytes).map_err(|e| format!("{e:?}")),
         2 => {
             let (px, _, _) =
                 pure_jpegls::decode(bytes, s.cols, s.rows).map_err(|e| e.to_string())?;

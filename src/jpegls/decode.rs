@@ -35,6 +35,7 @@ impl<'a> Decoder<'a> {
         })
     }
 
+    /// The size of the image, its bit depth and its number of components.
     pub fn frame(&self) -> FrameInfo {
         self.frame
     }

@@ -2,6 +2,7 @@
 //!
 //! - [`jpegls`]: JPEG-LS (ITU-T T.87 | ISO/IEC 14495-1).
 #![forbid(unsafe_code)]
+#![warn(missing_docs)]
 
 pub mod jpegls;
 

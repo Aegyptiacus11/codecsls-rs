@@ -58,3 +58,8 @@ impl FrameInfo {
         Ok(())
     }
 }
+
+/// The README's examples, compiled and run with the tests.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct Readme;

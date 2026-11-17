@@ -80,11 +80,99 @@ pub fn pixels(samples: &[u16], bits: u8) -> Vec<u8> {
 }
 
 pub fn frame(width: usize, height: usize, bits: u8) -> FrameInfo {
+    colour_frame(width, height, bits, 1)
+}
+
+pub fn colour_frame(width: usize, height: usize, bits: u8, components: u8) -> FrameInfo {
     FrameInfo {
         width: width as u32,
         height: height as u32,
         bits_per_sample: bits,
+        components,
     }
+}
+
+/// A pixel buffer of several components: each its own image of `kind`, or all the same
+/// one for "gray", where whole pixels repeat.
+pub fn colour(
+    kind: &str,
+    width: usize,
+    height: usize,
+    bits: u8,
+    components: usize,
+    rng: &mut Rng,
+) -> Vec<u8> {
+    let planes: Vec<Vec<u16>> = match kind {
+        "gray" => vec![samples("sparse", width, height, bits, rng); components],
+        // runs of whole pixels broken by a pixel that differs in one component only
+        "tint" => {
+            let base = samples("flat", width, height, bits, rng);
+            (0..components)
+                .map(|c| {
+                    let mut plane = base.clone();
+                    for sample in plane.iter_mut().skip(c * 3).step_by(11 + c) {
+                        *sample ^= 1;
+                    }
+                    plane
+                })
+                .collect()
+        }
+        _ => (0..components)
+            .map(|_| samples(kind, width, height, bits, rng))
+            .collect(),
+    };
+    let interleaved: Vec<u16> = (0..width * height)
+        .flat_map(|i| planes.iter().map(move |plane| plane[i]))
+        .collect();
+    pixels(&interleaved, bits)
+}
+
+/// The same pixels with each component on its own, one after the other, and back.
+pub fn to_planes(pixels: &[u8], frame: FrameInfo) -> Vec<u8> {
+    let (n, size) = (usize::from(frame.components), frame.bytes_per_sample());
+    let mut planes = Vec::with_capacity(pixels.len());
+    for component in 0..n {
+        for pixel in pixels.chunks_exact(n * size) {
+            planes.extend(&pixel[component * size..][..size]);
+        }
+    }
+    planes
+}
+
+pub fn from_planes(planes: &[u8], frame: FrameInfo) -> Vec<u8> {
+    let (n, size) = (usize::from(frame.components), frame.bytes_per_sample());
+    let plane_len = planes.len() / n;
+    let mut pixels = Vec::with_capacity(planes.len());
+    for at in (0..plane_len).step_by(size) {
+        for component in 0..n {
+            pixels.extend(&planes[component * plane_len + at..][..size]);
+        }
+    }
+    pixels
+}
+
+pub const COLOUR_KINDS: [&str; 8] = [
+    "noise", "flat", "ramp", "walk", "sparse", "stripes", "gray", "tint",
+];
+
+/// Every colour kind at some sizes and bit depths, of 2, 3 and 4 components.
+pub fn colour_images() -> Vec<(String, FrameInfo, Vec<u8>)> {
+    let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
+    let mut all = Vec::new();
+    for bits in [2, 5, 8, 10, 12, 16] {
+        for (width, height) in [(1, 1), (1, 9), (9, 1), (3, 5), (17, 33), (64, 48), (301, 7)] {
+            for kind in COLOUR_KINDS {
+                for components in 2..=4u8 {
+                    all.push((
+                        format!("{kind} {width}x{height} at {bits} bits, {components} components"),
+                        colour_frame(width, height, bits, components),
+                        colour(kind, width, height, bits, usize::from(components), &mut rng),
+                    ));
+                }
+            }
+        }
+    }
+    all
 }
 
 pub const SIZES: [(usize, usize); 9] = [

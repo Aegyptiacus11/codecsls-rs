@@ -1,0 +1,109 @@
+# Every push to main and every pull request: formatting, clippy, and the tests against
+# CharLS, the reference implementation, built from the release the submodule pins. A
+# second job runs the same tests against CharLS's main branch and never fails the run:
+# it says when the next CharLS differs. The crate alone is built where CharLS is not.
+# GitHub's own runners only: this repository is public, so it never gets a self-hosted one.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+      - name: Toolchain (rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Formatting, of the crate, the CharLS binding and the benchmark
+        run: |
+          set -euo pipefail
+          cargo fmt --check
+          cargo fmt --check --manifest-path charls-ref/Cargo.toml
+          cargo fmt --check --manifest-path bench/Cargo.toml
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo clippy --all-targets --manifest-path charls-ref/Cargo.toml -- -D warnings
+
+  test:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+      - name: Toolchain (rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: The CharLS binding, and that it built the pinned release
+        run: cargo test --manifest-path charls-ref/Cargo.toml
+      - run: cargo test --locked
+      - name: The conformance streams of T.87, which the CharLS repository holds
+        env:
+          CODECSLS_CONFORMANCE: charls-ref/charls/test/conformance
+        run: cargo test --locked --test conformance -- --ignored
+      - name: The benchmark still builds
+        run: cargo build --locked --manifest-path bench/Cargo.toml
+
+  # What is not released yet. A failure here is news about CharLS, not a broken build.
+  charls-main:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+      - name: Toolchain (rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - name: CharLS at the tip of its main branch
+        run: |
+          set -euo pipefail
+          git -C charls-ref/charls fetch --depth 1 origin main
+          git -C charls-ref/charls checkout --detach FETCH_HEAD
+          git -C charls-ref/charls log -1 --format='CharLS main is at %h, %cs'
+      # the binding's own tests name the pinned release, so only the codec's are run
+      - run: cargo test --locked
+      - name: The conformance streams of T.87
+        env:
+          CODECSLS_CONFORMANCE: charls-ref/charls/test/conformance
+        run: cargo test --locked --test conformance -- --ignored
+
+  # The crate has no dependency and no C++: it builds where the tests' CharLS is not set up.
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain (rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - run: cargo build --locked
+
+  # The oldest Rust the manifest names (rust-version).
+  msrv:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust 1.88
+        run: rustup toolchain install 1.88.0 --profile minimal
+      - run: cargo +1.88.0 build --locked

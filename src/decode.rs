@@ -41,21 +41,35 @@ impl<'a> Decoder<'a> {
 
     /// Decodes into `out`, which holds `self.frame().byte_len()` bytes.
     pub fn decode_into(&self, out: &mut [u8]) -> Result<(), Error> {
-        if out.len() != self.header.frame.byte_len() {
+        let frame = self.header.frame;
+        if out.len() != frame.byte_len() {
             return Err(Error::InvalidParameter(
                 "the pixel buffer is not width x height samples",
             ));
         }
-        scan(&self.header, self.data, out)
+        let mut rows = out.chunks_exact_mut(frame.width as usize * frame.bytes_per_sample());
+        scan(&self.header, self.data, |line| {
+            // as many rows as the scan has lines: the length was checked
+            if let Some(row) = rows.next() {
+                store(line, row);
+            }
+            Ok(())
+        })
     }
 
-    /// Decodes into a new buffer.
+    /// Decodes into a new buffer, which grows as rows are decoded: a short stream that
+    /// claims a huge image fails where its data ends, before the memory is taken.
     pub fn decode(&self) -> Result<Vec<u8>, Error> {
-        let len = self.header.frame.byte_len();
+        let frame = self.header.frame;
+        let row_len = frame.width as usize * frame.bytes_per_sample();
         let mut out = Vec::new();
-        out.try_reserve_exact(len).map_err(|_| Error::TooLarge)?;
-        out.resize(len, 0);
-        self.decode_into(&mut out)?;
+        scan(&self.header, self.data, |line| {
+            let filled = out.len();
+            out.try_reserve(row_len).map_err(|_| Error::TooLarge)?;
+            out.resize(filled + row_len, 0);
+            store(line, &mut out[filled..]);
+            Ok(())
+        })?;
         Ok(out)
     }
 }
@@ -73,13 +87,18 @@ fn store(line: &[u16], row: &mut [u8]) {
             *byte = sample as u8;
         }
     } else {
-        for (bytes, &sample) in row.chunks_exact_mut(2).zip(line) {
+        for (bytes, &sample) in row.as_chunks_mut::<2>().0.iter_mut().zip(line) {
             bytes.copy_from_slice(&sample.to_le_bytes());
         }
     }
 }
 
-fn scan(header: &Header, data: &[u8], out: &mut [u8]) -> Result<(), Error> {
+/// Decodes the scan, giving each line to `row` as it is complete.
+fn scan(
+    header: &Header,
+    data: &[u8],
+    mut row: impl FnMut(&[u16]) -> Result<(), Error>,
+) -> Result<(), Error> {
     let p = &header.params;
     let width = header.frame.width as usize;
     let quantizer = Quantizer::new(p);
@@ -105,7 +124,7 @@ fn scan(header: &Header, data: &[u8], out: &mut [u8]) -> Result<(), Error> {
     // lines as in the encoder: samples at 1..=width, the edge neighbours around them
     let mut above = vec![0u16; width + 2];
     let mut line = vec![0u16; width + 2];
-    for row in out.chunks_exact_mut(width * header.frame.bytes_per_sample()) {
+    for _ in 0..header.frame.height {
         line[0] = above[1];
         above[width + 1] = above[width];
         let mut x = 1;
@@ -177,9 +196,7 @@ fn scan(header: &Header, data: &[u8], out: &mut [u8]) -> Result<(), Error> {
                 } else {
                     rb + e * step
                 });
-                if run_index > 0 {
-                    run_index -= 1;
-                }
+                run_index = run_index.saturating_sub(1);
                 x += 1;
                 break;
             }
@@ -187,7 +204,7 @@ fn scan(header: &Header, data: &[u8], out: &mut [u8]) -> Result<(), Error> {
         if reader.overrun() {
             return Err(Error::Truncated);
         }
-        store(&line[1..=width], row);
+        row(&line[1..=width])?;
         std::mem::swap(&mut above, &mut line);
     }
     marker::read_end(data, reader.end()?)

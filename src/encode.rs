@@ -137,9 +137,7 @@ fn scan(frame: FrameInfo, p: &Params, pixels: &[u8], w: &mut BitWriter) -> Resul
                 p.qbpp,
             );
             ctx.update(e, mapped, p.reset);
-            if run_index > 0 {
-                run_index -= 1;
-            }
+            run_index = run_index.saturating_sub(1);
             x += 1;
         }
         std::mem::swap(&mut above, &mut line);

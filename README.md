@@ -89,18 +89,27 @@ pixels), one core of a Ryzen 7 PRO 7840U, best of 5 passes, measured 2026-11-17 
 
 | | Size | Encode per slice | Decode per slice |
 |---|---|---|---|
-| this crate 0.1.0 | 26.64 MB (1/3.385) | 2.58 ms | 3.16 ms |
-| CharLS 2.4.5 | 26.64 MB (1/3.385) | 3.65 ms | 3.12 ms |
+| this crate 0.1.0 | 26.64 MB (1/3.385) | 2.48 ms | 2.74 ms |
+| CharLS 2.4.5 | 26.64 MB (1/3.385) | 3.68 ms | 3.13 ms |
 
 The 172 streams are byte for byte those of CharLS.
+
+The codec runs on one thread and keeps nothing between images, so a caller codes one
+image per thread. The same study, its slices shared out between threads (8 cores, 16
+threads):
+
+| Threads | 1 | 2 | 4 | 8 | 16 |
+|---|---|---|---|---|---|
+| Encode the study | 428 ms | 232 ms | 127 ms | 79 ms | 56 ms |
+| Decode the study | 469 ms | 255 ms | 138 ms | 94 ms | 68 ms |
 
 The same check on real 8-bit images, the masks of the same case (172 slices each, 512 x
 512), where nearly everything is runs:
 
 | | Size | Encode per slice, this crate / CharLS | Decode per slice, this crate / CharLS |
 |---|---|---|---|
-| liver mask, 8-bit | 1/646 | 0.08 / 0.08 ms | 0.13 / 0.11 ms |
-| labelled slices, 16-bit | 1/192 | 0.13 / 0.15 ms | 0.28 / 0.26 ms |
+| liver mask, 8-bit | 1/646 | 0.08 / 0.08 ms | 0.13 / 0.12 ms |
+| labelled slices, 16-bit | 1/192 | 0.13 / 0.15 ms | 0.29 / 0.26 ms |
 
 Byte for byte CharLS's again, and exact both ways.
 

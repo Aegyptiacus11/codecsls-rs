@@ -1,6 +1,117 @@
 //! The adaptive state of a scan: one context per quantized gradient triple (T.87 A.6), two
 //! for the samples that interrupt a run (A.7.2).
 
+use crate::params::{Params, Quantizer};
+
+/// What every sample of a scan is coded with, and none changes.
+pub(crate) struct Coding {
+    pub p: Params,
+    pub quantizer: Quantizer,
+    /// Zeros before the escape of a regular code.
+    pub escape: u32,
+    /// 2 NEAR + 1: what a coded error is worth in sample values.
+    pub step: i32,
+    wrap: i32,
+}
+
+impl Coding {
+    pub fn new(p: Params) -> Coding {
+        let step = 2 * p.near + 1;
+        Coding {
+            p,
+            quantizer: Quantizer::new(&p),
+            escape: p.limit - p.qbpp - 1,
+            step,
+            wrap: p.range * step,
+        }
+    }
+
+    /// A prediction plus an error, brought back into the sample range (T.87 A.4.5, A.8).
+    #[inline(always)]
+    pub fn reconstruct(&self, value: i32) -> u16 {
+        let value = if value < -self.p.near {
+            value + self.wrap
+        } else if value > self.p.maxval + self.p.near {
+            value - self.wrap
+        } else {
+            value
+        };
+        value.clamp(0, self.p.maxval) as u16
+    }
+}
+
+/// What a scan learns as it goes. The components of an interleaved scan share it.
+pub(crate) struct Contexts {
+    pub regular: [Regular; 365],
+    pub run: [Run; 2],
+}
+
+impl Contexts {
+    pub fn new(p: &Params) -> Contexts {
+        let a = p.initial_a();
+        Contexts {
+            regular: [Regular::new(a); 365],
+            run: [Run::new(a, 0), Run::new(a, 1)],
+        }
+    }
+}
+
+/// A component's current line and the one above it. A line holds its samples at
+/// 1..=width; 0 and width + 1 are the neighbours the standard defines past the two edges
+/// (T.87 A.2.1). The line above the first is zeros.
+pub(crate) struct Lines {
+    pub above: Vec<u16>,
+    pub line: Vec<u16>,
+}
+
+impl Lines {
+    pub fn new(width: usize) -> Lines {
+        Lines {
+            above: vec![0; width + 2],
+            line: vec![0; width + 2],
+        }
+    }
+
+    pub fn width(&self) -> usize {
+        self.line.len() - 2
+    }
+
+    /// Before a line is coded: its left neighbour is the first sample above, and the
+    /// sample past the end of the line above repeats its last.
+    #[inline]
+    pub fn edges(&mut self) {
+        let width = self.width();
+        self.line[0] = self.above[1];
+        self.above[width + 1] = self.above[width];
+    }
+
+    /// The quantized gradients around the sample at `x`, as one signed number.
+    #[inline(always)]
+    pub fn context(&self, quantizer: &Quantizer, x: usize) -> i32 {
+        let ra = i32::from(self.line[x - 1]);
+        let rb = i32::from(self.above[x]);
+        let rc = i32::from(self.above[x - 1]);
+        let rd = i32::from(self.above[x + 1]);
+        quantizer.context(rd - rb, rb - rc, rc - ra)
+    }
+
+    /// The prediction for the sample at `x` (T.87 A.4.1), before the context's correction.
+    #[inline(always)]
+    pub fn predict(&self, x: usize) -> i32 {
+        predict(
+            i32::from(self.line[x - 1]),
+            i32::from(self.above[x]),
+            i32::from(self.above[x - 1]),
+        )
+    }
+
+    /// The line just coded becomes the line above.
+    #[inline]
+    pub fn advance(&mut self) {
+        std::mem::swap(&mut self.above, &mut self.line);
+    }
+}
+
 /// The Golomb parameter: the smallest k with `n << k >= a` (T.87 A.5.1), from the bit
 /// lengths of the two instead of a loop.
 #[inline(always)]

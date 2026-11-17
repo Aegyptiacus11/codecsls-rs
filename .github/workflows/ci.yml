@@ -77,12 +77,9 @@ jobs:
           git -C charls-ref/charls fetch --depth 1 origin main
           git -C charls-ref/charls checkout --detach FETCH_HEAD
           git -C charls-ref/charls log -1 --format='CharLS main is at %h, %cs'
-      # the binding's own tests name the pinned release, so only the codec's are run
+      # The binding's own tests name the pinned release, so only the codec's are run. The
+      # conformance streams do not involve CharLS: the test job has them.
       - run: cargo test --locked
-      - name: The conformance streams of T.87
-        env:
-          CODECSLS_CONFORMANCE: charls-ref/charls/test/conformance
-        run: cargo test --locked --test conformance -- --ignored
 
   # The crate has no dependency and no C++: it builds where the tests' CharLS is not set up.
   build:

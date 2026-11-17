@@ -1,10 +1,10 @@
 //! The decoder (T.87 annex A with any NEAR, annex B for several components).
 
-use crate::bits::BitReader;
-use crate::context::{Coding, Contexts, Lines, Regular, Run};
-use crate::marker::{self, Scan, Segments};
-use crate::params::J;
-use crate::{Error, FrameInfo, Interleave};
+use super::bits::BitReader;
+use super::context::{Coding, Contexts, Lines, Regular, Run};
+use super::marker::{self, Scan, Segments};
+use super::params::J;
+use super::{Error, FrameInfo, Interleave};
 
 /// No mapped error of a valid stream is above this; the check keeps the statistics of a
 /// hostile one within 32 bits.

@@ -1,7 +1,7 @@
 //! The marker segments around the coded data (T.87 C.1, C.2).
 
-use crate::params::{Params, Presets};
-use crate::{Error, FrameInfo, Interleave};
+use super::params::{Params, Presets};
+use super::{Error, FrameInfo, Interleave};
 
 const SOI: u8 = 0xD8;
 const EOI: u8 = 0xD9;

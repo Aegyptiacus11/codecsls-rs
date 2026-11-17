@@ -1,7 +1,7 @@
 //! The adaptive state of a scan: one context per quantized gradient triple (T.87 A.6), two
 //! for the samples that interrupt a run (A.7.2).
 
-use crate::params::{Params, Quantizer};
+use super::params::{Params, Quantizer};
 
 /// What every sample of a scan is coded with, and none changes.
 pub(crate) struct Coding {

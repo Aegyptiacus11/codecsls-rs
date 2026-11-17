@@ -5,7 +5,7 @@
 //! Both sides keep 64 bits and move four bytes at a time when none of them is 0xFF, which
 //! is nearly always.
 
-use crate::Error;
+use super::Error;
 
 /// Whether any of the four bytes is 0xFF.
 #[inline(always)]

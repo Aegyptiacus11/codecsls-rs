@@ -1,9 +1,9 @@
 //! The lossless encoder (T.87 annex A with NEAR = 0, annex B for several components).
 
-use crate::bits::BitWriter;
-use crate::context::{Coding, Contexts, Lines, Regular, Run};
-use crate::params::{Params, Presets, J};
-use crate::{marker, Error, FrameInfo, Interleave};
+use super::bits::BitWriter;
+use super::context::{Coding, Contexts, Lines, Regular, Run};
+use super::params::{Params, Presets, J};
+use super::{marker, Error, FrameInfo, Interleave};
 
 /// Codes an image without loss. An image of several components is interleaved by line.
 ///

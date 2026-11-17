@@ -4,7 +4,7 @@
 mod common;
 
 use charls::{CharLS, InterleaveMode};
-use jpegls::{FrameInfo, Interleave};
+use codecsls::jpegls::{FrameInfo, Interleave};
 
 const MODES: [(Interleave, InterleaveMode); 3] = [
     (Interleave::None, InterleaveMode::None),
@@ -78,7 +78,7 @@ fn encodes_the_bytes_charls_does() {
     let mut compared = [0; 3];
     for (name, frame, pixels) in common::colour_images() {
         for (mode, (ours, _)) in MODES.iter().enumerate() {
-            let stream = jpegls::encode_interleaved(frame, *ours, &pixels)
+            let stream = codecsls::jpegls::encode_interleaved(frame, *ours, &pixels)
                 .unwrap_or_else(|e| panic!("{name} {ours:?}: {e}"));
             let Some(theirs) = charls_encode(frame, 0, mode, &pixels) else {
                 continue;
@@ -108,7 +108,8 @@ fn charls_decodes_what_we_encode() {
             if frame.components == 2 && ours != Interleave::None {
                 continue;
             }
-            let stream = jpegls::encode_interleaved(frame, ours, &pixels).expect("encodes");
+            let stream =
+                codecsls::jpegls::encode_interleaved(frame, ours, &pixels).expect("encodes");
             let back = CharLS::default()
                 .decode(&stream)
                 .unwrap_or_else(|e| panic!("{name} {ours:?}: {e:?}"));
@@ -125,8 +126,9 @@ fn every_image_comes_back_in_every_mode() {
     // two components interleaved too, which CharLS does not check
     for (name, frame, pixels) in common::colour_images() {
         for (ours, _) in MODES {
-            let stream = jpegls::encode_interleaved(frame, ours, &pixels).expect("encodes");
-            let decoder = jpegls::Decoder::new(&stream).expect("headers");
+            let stream =
+                codecsls::jpegls::encode_interleaved(frame, ours, &pixels).expect("encodes");
+            let decoder = codecsls::jpegls::Decoder::new(&stream).expect("headers");
             assert_eq!(
                 (decoder.frame(), decoder.interleave()),
                 (frame, ours),
@@ -137,9 +139,9 @@ fn every_image_comes_back_in_every_mode() {
                 "{name} {ours:?}"
             );
         }
-        let default = jpegls::encode(frame, &pixels).expect("encodes");
+        let default = codecsls::jpegls::encode(frame, &pixels).expect("encodes");
         assert_eq!(
-            jpegls::Decoder::new(&default)
+            codecsls::jpegls::Decoder::new(&default)
                 .expect("headers")
                 .interleave(),
             Interleave::Line
@@ -164,7 +166,7 @@ fn decodes_what_charls_encodes_lossless_and_near_lossless() {
                     .decode(&stream)
                     .expect("CharLS decodes its own");
                 let theirs = from_charls(&theirs, frame, *ours);
-                let decoder = jpegls::Decoder::new(&stream)
+                let decoder = codecsls::jpegls::Decoder::new(&stream)
                     .unwrap_or_else(|e| panic!("{name} {ours:?} near {near}: {e}"));
                 assert_eq!(
                     (

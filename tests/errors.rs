@@ -2,8 +2,8 @@
 
 mod common;
 
+use codecsls::jpegls::{decode, encode, encode_interleaved, Decoder, Error, FrameInfo, Interleave};
 use common::{colour, colour_frame, frame, pixels, samples, Rng};
-use jpegls::{decode, encode, encode_interleaved, Decoder, Error, FrameInfo, Interleave};
 
 fn stream(kind: &str, width: usize, height: usize, bits: u8) -> (Vec<u8>, Vec<u8>) {
     let image = pixels(&samples(kind, width, height, bits, &mut Rng(23)), bits);

@@ -1,11 +1,11 @@
 [package]
-name = "jpegls"
+name = "codecsls"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
 license = "MIT OR Apache-2.0"
-description = "JPEG-LS (ITU-T T.87) for single-component images: lossless encoder, lossless and near-lossless decoder, in safe Rust"
-repository = "https://github.com/Aegyptiacus11/jpegls-rs"
+description = "Lossless codecs for medical images in safe Rust: JPEG-LS (ITU-T T.87), gray and colour"
+repository = "https://github.com/Aegyptiacus11/codecsls-rs"
 keywords = ["jpeg-ls", "jpegls", "dicom", "lossless", "codec"]
 categories = ["compression", "multimedia::images"]
 exclude = ["bench/"]

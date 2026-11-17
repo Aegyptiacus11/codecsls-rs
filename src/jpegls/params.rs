@@ -1,6 +1,6 @@
 //! The coding parameters of a scan (T.87 A.1, C.2.4.1.1) and the gradient quantizer (A.3.3).
 
-use crate::Error;
+use super::Error;
 
 /// Run-length code orders (T.87 A.2.1, table J).
 pub(crate) const J: [u32; 32] = [

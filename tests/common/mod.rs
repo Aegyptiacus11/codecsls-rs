@@ -1,7 +1,7 @@
 //! Test images: made up, of every kind that takes a different path through the codec.
 #![allow(dead_code)]
 
-use jpegls::FrameInfo;
+use codecsls::jpegls::FrameInfo;
 
 /// xorshift64: the same images on every run.
 pub struct Rng(pub u64);

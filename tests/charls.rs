@@ -4,7 +4,7 @@
 mod common;
 
 use charls::CharLS;
-use jpegls::FrameInfo;
+use codecsls::jpegls::FrameInfo;
 
 fn charls_frame(frame: FrameInfo) -> charls::FrameInfo {
     charls::FrameInfo {
@@ -39,7 +39,8 @@ fn assert_most(compared: usize, of: usize) {
 fn encodes_the_bytes_charls_does() {
     let mut compared = 0;
     for (name, frame, pixels) in common::images() {
-        let ours = jpegls::encode(frame, &pixels).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let ours =
+            codecsls::jpegls::encode(frame, &pixels).unwrap_or_else(|e| panic!("{name}: {e}"));
         let Some(theirs) = charls_encode(frame, 0, &pixels) else {
             continue;
         };
@@ -57,7 +58,8 @@ fn encodes_the_bytes_charls_does() {
 #[test]
 fn charls_decodes_what_we_encode() {
     for (name, frame, pixels) in common::images() {
-        let ours = jpegls::encode(frame, &pixels).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let ours =
+            codecsls::jpegls::encode(frame, &pixels).unwrap_or_else(|e| panic!("{name}: {e}"));
         let back = CharLS::default()
             .decode(&ours)
             .unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -72,7 +74,8 @@ fn decodes_what_charls_encodes_lossless() {
         let Some(stream) = charls_encode(frame, 0, &pixels) else {
             continue;
         };
-        let (got, back) = jpegls::decode(&stream).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let (got, back) =
+            codecsls::jpegls::decode(&stream).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!(got, frame, "{name}");
         assert!(back == pixels, "{name}: other samples than were encoded");
         compared += 1;
@@ -96,8 +99,8 @@ fn decodes_what_charls_encodes_near_lossless() {
             let theirs = CharLS::default()
                 .decode(&stream)
                 .expect("CharLS decodes its own");
-            let decoder =
-                jpegls::Decoder::new(&stream).unwrap_or_else(|e| panic!("{name} near {near}: {e}"));
+            let decoder = codecsls::jpegls::Decoder::new(&stream)
+                .unwrap_or_else(|e| panic!("{name} near {near}: {e}"));
             assert_eq!(i32::from(decoder.near()), near, "{name}");
             let ours = decoder
                 .decode()

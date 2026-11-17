@@ -15,12 +15,12 @@ struct Slice {
     native: Vec<u8>, // little-endian 16-bit samples, as in the file
 }
 
-const NAMES: [&str; 4] = ["jpegls (this crate)", "charls", "pure_jpegls", "dicom-toolkit-codec"];
+const NAMES: [&str; 4] = ["codecsls (this crate)", "charls", "pure_jpegls", "dicom-toolkit-codec"];
 
 fn encode(codec: usize, s: &Slice) -> Result<Vec<u8>, String> {
     match codec {
-        0 => jpegls::encode(
-            jpegls::FrameInfo { width: s.cols, height: s.rows, bits_per_sample: s.bits, components: 1 },
+        0 => codecsls::jpegls::encode(
+            codecsls::jpegls::FrameInfo { width: s.cols, height: s.rows, bits_per_sample: s.bits, components: 1 },
             &s.native,
         )
         .map_err(|e| e.to_string()),
@@ -51,7 +51,7 @@ fn encode(codec: usize, s: &Slice) -> Result<Vec<u8>, String> {
 
 fn decode(codec: usize, s: &Slice, bytes: &[u8]) -> Result<Vec<u8>, String> {
     match codec {
-        0 => jpegls::decode(bytes).map(|(_, pixels)| pixels).map_err(|e| e.to_string()),
+        0 => codecsls::jpegls::decode(bytes).map(|(_, pixels)| pixels).map_err(|e| e.to_string()),
         1 => charls::CharLS::default().decode(bytes).map_err(|e| e.to_string()),
         2 => {
             let (px, _, _) = pure_jpegls::decode(bytes, s.cols, s.rows).map_err(|e| e.to_string())?;

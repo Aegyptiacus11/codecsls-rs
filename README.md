@@ -39,17 +39,18 @@ assert_eq!(decoder.decode()?, rgb);
 # Ok::<(), codecsls::jpegls::Error>(())
 ```
 
-Many images at once, on the number of threads the caller gives; 1 is the calling thread
-alone. Results keep the order of the images, and the error of a batch is that of its
-first bad image:
+Many images at once, an image per thread. Two threads unless the caller gives a number,
+since not every machine has more; 1 is the calling thread alone. Results keep the order
+of the images, and the error of a batch is that of its first bad image:
 
 ```rust
-use codecsls::jpegls::{decode_many, encode_many, FrameInfo};
+use codecsls::jpegls::{decode_many, encode_many, encode_many_with_threads, FrameInfo};
 
 let frame = FrameInfo { width: 64, height: 64, bits_per_sample: 12, components: 1 };
 let slices = vec![vec![0u8; frame.byte_len()]; 40];
-let streams = encode_many(frame, &slices, 4)?;
-let back = decode_many(&streams, 4)?;
+let streams = encode_many(frame, &slices)?;
+assert_eq!(streams, encode_many_with_threads(frame, &slices, 8)?);
+let back = decode_many(&streams)?;
 assert!(back.iter().zip(&slices).all(|((f, pixels), slice)| *f == frame && pixels == slice));
 # Ok::<(), codecsls::jpegls::Error>(())
 ```
@@ -110,13 +111,13 @@ pixels), one core of a Ryzen 7 PRO 7840U, best of 5 passes, measured 2026-11-17 
 The 172 streams are byte for byte those of CharLS.
 
 `encode` and `decode` run on the calling thread. For many images there are `encode_many`
-and `decode_many`, which code an image per thread on as many threads as the caller says.
-The same study as one batch (8 cores, 16 threads):
+and `decode_many`, which code an image per thread: on two threads, or on as many as the
+caller says. The same study as one batch (8 cores, 16 threads):
 
-| Threads | 1 | 2 | 4 | 8 | 16 |
+| Threads | 1 | 2 (the default) | 4 | 8 | 16 |
 |---|---|---|---|---|---|
-| `encode_many` | 440 ms | 225 ms | 119 ms | 71 ms | 51 ms |
-| `decode_many` | 489 ms | 248 ms | 132 ms | 81 ms | 56 ms |
+| encoding | 440 ms | 225 ms | 119 ms | 71 ms | 51 ms |
+| decoding | 489 ms | 248 ms | 132 ms | 81 ms | 56 ms |
 
 The same check on real 8-bit images, the masks of the same case (172 slices each, 512 x
 512), where nearly everything is runs:
@@ -149,11 +150,11 @@ checked, with `tests/conformance.rs`:
 - the encoder writes the coded data of the reference's lossless streams, scan for scan;
 - the two streams with subsampled components are refused.
 
-The files carry no licence, so they are not in this repository. CharLS's repository has
-them under `test/conformance`:
+The files carry no licence, so they are not in this repository itself. CharLS's
+repository has them, and it is here as a submodule:
 
 ```sh
-CODECSLS_CONFORMANCE=<that folder> cargo test --test conformance -- --ignored
+CODECSLS_CONFORMANCE=charls-ref/charls/test/conformance cargo test --test conformance -- --ignored
 ```
 
 ### Not checked yet

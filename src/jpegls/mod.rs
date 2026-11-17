@@ -10,12 +10,14 @@ mod context;
 mod decode;
 mod encode;
 mod error;
+mod many;
 mod marker;
 mod params;
 
 pub use decode::{decode, Decoder};
 pub use encode::{encode, encode_interleaved};
 pub use error::Error;
+pub use many::{decode_many, encode_many};
 
 /// The size of an image and the precision of its samples.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

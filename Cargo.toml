@@ -8,8 +8,9 @@ description = "Lossless image codecs in safe Rust: JPEG-LS (ITU-T T.87), gray an
 repository = "https://github.com/Aegyptiacus11/codecsls-rs"
 keywords = ["jpeg-ls", "jpegls", "dicom", "lossless", "codec"]
 categories = ["compression", "multimedia::images"]
-exclude = ["bench/"]
+exclude = ["bench/", "charls-ref/"]
 
 [dev-dependencies]
-# The reference implementation, C++ built by cmake: what the tests compare with.
-charls = { version = "=0.4.2", features = ["static"] }
+# CharLS, the reference implementation, built from the release the submodule pins: what
+# the tests compare with. C++, so the tests need cmake and a compiler.
+charls-ref = { path = "charls-ref" }

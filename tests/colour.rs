@@ -3,13 +3,12 @@
 
 mod common;
 
-use charls::{CharLS, InterleaveMode};
 use codecsls::jpegls::{FrameInfo, Interleave};
 
-const MODES: [(Interleave, InterleaveMode); 3] = [
-    (Interleave::None, InterleaveMode::None),
-    (Interleave::Line, InterleaveMode::Line),
-    (Interleave::Sample, InterleaveMode::Sample),
+const MODES: [(Interleave, charls_ref::Interleave); 3] = [
+    (Interleave::None, charls_ref::Interleave::None),
+    (Interleave::Line, charls_ref::Interleave::Line),
+    (Interleave::Sample, charls_ref::Interleave::Sample),
 ];
 
 /// What CharLS takes and gives for a mode: planes when the stream has a scan per
@@ -30,42 +29,32 @@ fn from_charls(decoded: &[u8], frame: FrameInfo, mode: Interleave) -> Vec<u8> {
     }
 }
 
-/// CharLS's stream, or nothing where its binding cannot make one: an image that does not
-/// compress (error 3, as in `tests/charls.rs`), or two components interleaved, which
-/// CharLS does not do.
+/// CharLS's stream, or nothing for two components interleaved, which CharLS does not do.
 fn charls_encode(frame: FrameInfo, near: i32, mode: usize, pixels: &[u8]) -> Option<Vec<u8>> {
     if frame.components == 2 && MODES[mode].0 != Interleave::None {
         return None;
     }
-    let mut charls = CharLS::default();
-    charls
-        .set_interleave_mode(MODES[mode].1)
-        .expect("CharLS takes the mode");
-    let info = charls::FrameInfo {
+    let image = charls_ref::Image {
         width: frame.width,
         height: frame.height,
-        bits_per_sample: i32::from(frame.bits_per_sample),
-        component_count: i32::from(frame.components),
+        bits_per_sample: frame.bits_per_sample,
+        components: frame.components,
     };
-    match charls.encode(info, near, &for_charls(pixels, frame, MODES[mode].0)) {
-        Ok(stream) => Some(stream),
-        Err(e) if format!("{e:?}").contains("code: 3") => None,
-        Err(e) => panic!("CharLS does not encode: {e:?}"),
-    }
+    let pixels = for_charls(pixels, frame, MODES[mode].0);
+    let stream = charls_ref::encode(image, near as u8, MODES[mode].1, &pixels)
+        .unwrap_or_else(|e| panic!("CharLS does not encode: {e:?}"));
+    Some(stream)
 }
 
 /// Whether CharLS decodes its own lossless stream to the image it was given.
 ///
 /// It does not always: for an 8-bit image of four components interleaved by sample, the
 /// stream it writes can hold another image, with samples of the fourth component changed
-/// (4 of the 335 here). Seen with the CharLS this binding builds (it reports 2.4.2) and
-/// with release 2.4.5; its main branch (3.0.0, 2026-11-14) is exact on the same images.
+/// (4 of the 335 here). Seen with release 2.4.5, the one pinned here; its main branch (3.0.0, 2026-11-14) is exact on the same images.
 /// Those streams are no reference for the encoder; this crate's own stream of such an
 /// image is exact, and CharLS decodes it exactly (`charls_decodes_what_we_encode`).
 fn charls_is_exact(stream: &[u8], frame: FrameInfo, mode: Interleave, pixels: &[u8]) -> bool {
-    let back = CharLS::default()
-        .decode(stream)
-        .expect("CharLS decodes its own");
+    let back = charls_ref::decode(stream).expect("CharLS decodes its own");
     let exact = from_charls(&back, frame, mode) == pixels;
     assert!(
         exact || (frame.components == 4 && mode == Interleave::Sample),
@@ -111,9 +100,8 @@ fn charls_decodes_what_we_encode() {
             }
             let stream =
                 codecsls::jpegls::encode_interleaved(frame, ours, &pixels).expect("encodes");
-            let back = CharLS::default()
-                .decode(&stream)
-                .unwrap_or_else(|e| panic!("{name} {ours:?}: {e:?}"));
+            let back =
+                charls_ref::decode(&stream).unwrap_or_else(|e| panic!("{name} {ours:?}: {e:?}"));
             assert!(
                 from_charls(&back, frame, ours) == pixels,
                 "{name} {ours:?}: other samples"
@@ -163,9 +151,7 @@ fn decodes_what_charls_encodes_lossless_and_near_lossless() {
                 let Some(stream) = charls_encode(frame, near, mode, &pixels) else {
                     continue;
                 };
-                let theirs = CharLS::default()
-                    .decode(&stream)
-                    .expect("CharLS decodes its own");
+                let theirs = charls_ref::decode(&stream).expect("CharLS decodes its own");
                 let theirs = from_charls(&theirs, frame, *ours);
                 let decoder = codecsls::jpegls::Decoder::new(&stream)
                     .unwrap_or_else(|e| panic!("{name} {ours:?} near {near}: {e}"));

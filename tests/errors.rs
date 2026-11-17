@@ -2,8 +2,8 @@
 
 mod common;
 
-use common::{frame, pixels, samples, Rng};
-use jpegls::{decode, encode, Decoder, Error, FrameInfo};
+use common::{colour, colour_frame, frame, pixels, samples, Rng};
+use jpegls::{decode, encode, encode_interleaved, Decoder, Error, FrameInfo, Interleave};
 
 fn stream(kind: &str, width: usize, height: usize, bits: u8) -> (Vec<u8>, Vec<u8>) {
     let image = pixels(&samples(kind, width, height, bits, &mut Rng(23)), bits);
@@ -36,6 +36,7 @@ fn encode_refuses_frames_that_cannot_be_coded() {
                 width,
                 height,
                 bits_per_sample: bits,
+                components: 1,
             },
             &vec![0; len],
         )
@@ -135,15 +136,14 @@ fn decode_refuses_the_streams_it_does_not_read() {
         .position(|w| w == [0xFF, 0xDA])
         .expect("scan header");
 
-    // three components
-    let mut colour = stream[..sof].to_vec();
-    colour.extend([
-        0xFF, 0xF7, 0, 17, 8, 0, 8, 0, 8, 3, 1, 0x11, 0, 2, 0x11, 0, 3, 0x11, 0,
-    ]);
-    colour.extend(&stream[sos..]);
+    // five components
+    let mut many = stream[..sof].to_vec();
+    many.extend([0xFF, 0xF7, 0, 23, 8, 0, 8, 0, 8, 5]);
+    many.extend([1, 0x11, 0, 2, 0x11, 0, 3, 0x11, 0, 4, 0x11, 0, 5, 0x11, 0]);
+    many.extend(&stream[sos..]);
     assert_eq!(
-        decode(&colour),
-        Err(Error::Unsupported("more than one component"))
+        decode(&many),
+        Err(Error::Unsupported("more than four components"))
     );
 
     // a restart interval of 4 lines
@@ -349,6 +349,167 @@ fn no_damaged_stream_makes_the_decoder_panic() {
             }
         }
         // a claimed size the damage made huge is refused here, as a caller would
+        if let Ok(decoder) = Decoder::new(&damaged) {
+            if decoder.frame().byte_len() <= 1 << 22 {
+                let _ = decoder.decode();
+            }
+        }
+    }
+}
+
+const MODES: [Interleave; 3] = [Interleave::None, Interleave::Line, Interleave::Sample];
+
+fn colour_stream(kind: &str, width: usize, height: usize, bits: u8, mode: Interleave) -> Vec<u8> {
+    let image = colour(kind, width, height, bits, 3, &mut Rng(31));
+    encode_interleaved(colour_frame(width, height, bits, 3), mode, &image).expect("encodes")
+}
+
+#[test]
+fn encode_refuses_colour_frames_that_cannot_be_coded() {
+    let refused = |components, len: usize| encode(colour_frame(4, 4, 8, components), &vec![0; len]);
+    assert!(matches!(refused(0, 0), Err(Error::InvalidParameter(_))));
+    assert!(matches!(refused(5, 80), Err(Error::InvalidParameter(_))));
+    // a gray buffer for a colour frame, and the other way round
+    assert!(matches!(refused(3, 16), Err(Error::InvalidParameter(_))));
+    assert!(matches!(refused(1, 48), Err(Error::InvalidParameter(_))));
+    assert!(refused(3, 48).is_ok());
+    // a sample above the bit depth in the last component of the last pixel
+    let mut image = vec![0u8; 48];
+    image[47] = 32;
+    for mode in MODES {
+        let result = encode_interleaved(colour_frame(4, 4, 5, 3), mode, &image);
+        assert_eq!(result, Err(Error::SampleOutOfRange), "{mode:?}");
+    }
+}
+
+#[test]
+fn every_truncation_of_a_colour_stream_is_an_error() {
+    for mode in MODES {
+        for (kind, bits) in [("walk", 8), ("tint", 16), ("gray", 12)] {
+            let stream = colour_stream(kind, 19, 7, bits, mode);
+            for len in 0..stream.len() {
+                assert!(
+                    decode(&stream[..len]).is_err(),
+                    "{kind} {mode:?}: {len} bytes decode"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn colour_scans_must_cover_the_components_once() {
+    let scans = |stream: &[u8]| -> Vec<usize> {
+        (0..stream.len() - 1)
+            .filter(|&i| stream[i..i + 2] == [0xFF, 0xDA])
+            .collect()
+    };
+    // a scan per component: the image ends after two of the three
+    let planes = colour_stream("walk", 9, 9, 8, Interleave::None);
+    let starts = scans(&planes);
+    assert_eq!(starts.len(), 3);
+    let mut two = planes[..starts[2]].to_vec();
+    two.extend([0xFF, 0xD9]);
+    assert_eq!(
+        decode(&two),
+        Err(Error::InvalidData("the image ends before all its scans"))
+    );
+    // and a fourth scan after the three
+    let mut four = planes[..planes.len() - 2].to_vec();
+    four.extend(&planes[starts[2]..]);
+    assert_eq!(
+        decode(&four),
+        Err(Error::InvalidData("more scans than components"))
+    );
+
+    let line = colour_stream("walk", 9, 9, 8, Interleave::Line);
+    let sos = scans(&line)[0];
+    // three components in a scan that says it does not interleave them
+    let mut plain = line.clone();
+    plain[sos + 12] = 0;
+    assert!(matches!(decode(&plain), Err(Error::InvalidData(_))));
+    // two of the three components in a scan
+    let mut part = line[..sos].to_vec();
+    part.extend([0xFF, 0xDA, 0, 10, 2, 1, 0, 2, 0, 0, 1, 0]);
+    part.extend(&line[sos + 14..]);
+    assert_eq!(
+        decode(&part),
+        Err(Error::Unsupported("a scan of part of the components"))
+    );
+    // a mapping table for the third component
+    let mut mapped = line.clone();
+    mapped[sos + 10] = 1;
+    assert_eq!(decode(&mapped), Err(Error::Unsupported("a mapping table")));
+}
+
+#[test]
+fn colour_the_decoder_would_get_wrong_is_refused() {
+    let line = colour_stream("walk", 9, 9, 8, Interleave::Line);
+    let image = decode(&line).expect("decodes").1;
+    // the components were transformed before coding (HP1), which is not undone here
+    let transformed = with_segment(&line, 0xF7, 0xE8, b"mrfx\x01");
+    assert_eq!(
+        decode(&transformed),
+        Err(Error::Unsupported("a colour transform"))
+    );
+    // the same segment saying "no transform", and application data that is something else
+    assert!(
+        decode(&with_segment(&line, 0xF7, 0xE8, b"mrfx\x00"))
+            .expect("decodes")
+            .1
+            == image
+    );
+    assert!(
+        decode(&with_segment(&line, 0xF7, 0xE8, b"other"))
+            .expect("decodes")
+            .1
+            == image
+    );
+    // a component at half the resolution
+    let sof = line
+        .windows(2)
+        .position(|w| w == [0xFF, 0xF7])
+        .expect("frame header");
+    let mut subsampled = line.clone();
+    subsampled[sof + 14] = 0x21;
+    assert_eq!(
+        decode(&subsampled),
+        Err(Error::Unsupported("subsampled components"))
+    );
+}
+
+#[test]
+fn no_damaged_colour_stream_makes_the_decoder_panic() {
+    for mode in MODES {
+        let stream = colour_stream("tint", 11, 4, 8, mode);
+        for at in 0..stream.len() {
+            for value in [0x00, 0x01, 0x7F, 0x80, 0xFF, stream[at] ^ 0x04] {
+                let mut damaged = stream.clone();
+                damaged[at] = value;
+                let _ = decode(&damaged);
+            }
+        }
+    }
+    let mut rng = Rng(37);
+    for round in 0..2000 {
+        let kind = common::COLOUR_KINDS[round % common::COLOUR_KINDS.len()];
+        let bits = [2, 8, 12, 16][round % 4];
+        let components = 2 + (round % 3) as u8;
+        let (width, height) = (1 + rng.below(50) as usize, 1 + rng.below(20) as usize);
+        let image = colour(kind, width, height, bits, usize::from(components), &mut rng);
+        let frame = colour_frame(width, height, bits, components);
+        let mut damaged = encode_interleaved(frame, MODES[round % 3], &image).expect("encodes");
+        for _ in 0..1 + rng.below(4) {
+            let at = rng.below(damaged.len() as u64) as usize;
+            match rng.below(4) {
+                0 => damaged[at] = rng.below(256) as u8,
+                1 => damaged[at] ^= 1 << rng.below(8),
+                2 => {
+                    damaged.remove(at);
+                }
+                _ => damaged.insert(at, rng.below(256) as u8),
+            }
+        }
         if let Ok(decoder) = Decoder::new(&damaged) {
             if decoder.frame().byte_len() <= 1 << 22 {
                 let _ = decoder.decode();

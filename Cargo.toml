@@ -8,7 +8,10 @@ description = "Lossless image codecs in safe Rust: JPEG-LS (ITU-T T.87), gray an
 repository = "https://github.com/Aegyptiacus11/codecsls-rs"
 keywords = ["jpeg-ls", "jpegls", "dicom", "lossless", "codec"]
 categories = ["compression", "multimedia::images"]
-exclude = ["bench/", "charls-ref/"]
+readme = "README.md"
+# What a user of the crate needs. The tests are left out with the CharLS they compare with
+# (charls-ref/, a submodule) and the benchmark: they are run from the repository.
+include = ["/src", "/README.md", "/LICENSE-APACHE", "/LICENSE-MIT"]
 
 [dev-dependencies]
 # CharLS, the reference implementation, built from the release the submodule pins: what

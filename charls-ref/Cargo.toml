@@ -1,0 +1,16 @@
+# CharLS, the reference implementation of JPEG-LS, built from the release this
+# repository pins (the `charls` submodule), for the tests and the benchmark to compare
+# with. Not part of the published crate.
+[package]
+name = "charls-ref"
+version = "0.0.0"
+edition = "2021"
+publish = false
+links = "charls"
+
+[dependencies]
+# the C++ runtime CharLS needs, whichever the platform calls it
+link-cplusplus = "1.0"
+
+[build-dependencies]
+cmake = "0.1"

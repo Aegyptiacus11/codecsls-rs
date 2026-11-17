@@ -1,0 +1,3 @@
+[submodule "charls-ref/charls"]
+	path = charls-ref/charls
+	url = https://github.com/team-charls/charls

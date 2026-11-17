@@ -145,7 +145,11 @@ pub fn decode(data: &[u8]) -> Result<(FrameInfo, Vec<u8>), Error> {
 /// Writes the line of one component into a row of the pixel buffer.
 fn store(line: &[u16], row: &mut [u8], component: usize, frame: FrameInfo) {
     let components = usize::from(frame.components);
-    if frame.bytes_per_sample() == 1 {
+    if frame.bytes_per_sample() == 1 && components == 1 {
+        for (byte, &sample) in row.iter_mut().zip(line) {
+            *byte = sample as u8;
+        }
+    } else if frame.bytes_per_sample() == 1 {
         for (pixel, &sample) in row.chunks_exact_mut(components).zip(line) {
             pixel[component] = sample as u8;
         }

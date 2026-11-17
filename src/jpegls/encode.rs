@@ -105,7 +105,12 @@ fn load(
     let components = usize::from(frame.components);
     // MAXVAL is all ones, so a sample is above it exactly when the OR of all is
     let mut any = 0u16;
-    if frame.bytes_per_sample() == 1 {
+    if frame.bytes_per_sample() == 1 && components == 1 {
+        for (sample, &byte) in line.iter_mut().zip(row) {
+            *sample = u16::from(byte);
+            any |= *sample;
+        }
+    } else if frame.bytes_per_sample() == 1 {
         for (sample, pixel) in line.iter_mut().zip(row.chunks_exact(components)) {
             *sample = u16::from(pixel[component]);
             any |= *sample;
@@ -225,9 +230,12 @@ fn encode_line(
 
         // Run mode (A.7): the samples equal to the one on the left, counted
         let start = x;
-        while x <= width && lines.line[x] == lines.line[start - 1] {
-            x += 1;
-        }
+        let left = lines.line[x - 1];
+        let rest = &lines.line[x..=width];
+        x += rest
+            .iter()
+            .position(|&sample| sample != left)
+            .unwrap_or(rest.len());
         run_length((x - start) as u32, x > width, run_index, w);
         if x > width {
             break;

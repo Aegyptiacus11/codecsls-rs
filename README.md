@@ -61,28 +61,27 @@ every bit depth from 2 to 16, gray and of 2 to 4 components in the three interle
 - this crate decodes what CharLS encodes, lossless and near-lossless, to the samples CharLS
   decodes.
 
-`cargo test` builds the CharLS that the `charls` crate carries, which reports 2.4.2. The
-whole suite also passes against release 2.4.5, the newest, and against CharLS's main
-branch (3.0.0, not released, 2026-11-14), each put in place of the carried one:
+The CharLS the tests build is release 2.4.5, the newest, pinned as a submodule under
+`charls-ref/`. The suite also passes against CharLS's main branch (3.0.0, not released,
+2026-11-14):
 
 ```sh
-cp -r ~/.cargo/registry/src/*/charls-sys-2.4.6* charls-sys && rm -r charls-sys/charls
-git clone --depth 1 --branch 2.4.5 https://github.com/team-charls/charls charls-sys/charls
-cargo test --config 'patch.crates-io.charls-sys.path="charls-sys"'
+git -C charls-ref/charls fetch origin main && git -C charls-ref/charls checkout FETCH_HEAD
+cargo test
 ```
 
-Where the versions differ:
+Where CharLS differs from this crate:
 
 - **The parameters above 12 bits.** This crate writes the coding parameters out in an LSE
   segment above 12 bits, as CharLS 2 does. CharLS 3.0.0 leaves those 15 bytes out; against
   it the streams are compared without them, and are the same.
-- **Four components by sample.** The lossless stream CharLS 2.4.2 and 2.4.5 write for an
-  8-bit image of 4 components interleaved by sample can hold another image: samples of the
-  fourth component come back changed (4 of the 335 such test images, 13 to 168 samples
-  each). CharLS 3.0.0 is exact on them, and writes the bytes this crate does. The streams
-  CharLS gets wrong are left out of the byte comparison.
-- **Images that do not compress.** Through the `charls` crate they fail with "destination
-  buffer too small"; here they come out larger than they went in.
+- **Four components by sample.** The lossless stream CharLS 2.4.5 writes for an 8-bit image
+  of 4 components interleaved by sample can hold another image: samples of the fourth
+  component come back changed (4 of the 335 such test images, 13 to 168 samples each).
+  CharLS 3.0.0 is exact on them, and writes the bytes this crate does. The streams CharLS
+  gets wrong are left out of the byte comparison.
+- **The size of the pixel buffer.** CharLS 2.4.5 takes a pixel buffer one byte short of
+  the frame without an error; here it is one.
 
 On 172 slices of a public CT (3D-IRCADb patient 1.2, 512 x 512, signed 16-bit, 90.2 MB of
 pixels), one core of a Ryzen 7 PRO 7840U, best of 5 passes, measured 2026-11-17 with
@@ -90,8 +89,8 @@ pixels), one core of a Ryzen 7 PRO 7840U, best of 5 passes, measured 2026-11-17 
 
 | | Size | Encode per slice | Decode per slice |
 |---|---|---|---|
-| this crate 0.1.0 | 26.64 MB (1/3.385) | 2.58 ms | 3.15 ms |
-| CharLS 2.4.2 (as built by `charls` 0.4.2) | 26.64 MB (1/3.385) | 3.59 ms | 3.15 ms |
+| this crate 0.1.0 | 26.64 MB (1/3.385) | 2.58 ms | 3.16 ms |
+| CharLS 2.4.5 | 26.64 MB (1/3.385) | 3.65 ms | 3.12 ms |
 
 The 172 streams are byte for byte those of CharLS.
 
@@ -100,12 +99,13 @@ The same check on real 8-bit images, the masks of the same case (172 slices each
 
 | | Size | Encode per slice, this crate / CharLS | Decode per slice, this crate / CharLS |
 |---|---|---|---|
-| liver mask, 8-bit | 1/646 | 0.08 / 0.10 ms | 0.13 / 0.11 ms |
-| labelled slices, 16-bit | 1/192 | 0.13 / 0.18 ms | 0.29 / 0.26 ms |
+| liver mask, 8-bit | 1/646 | 0.08 / 0.08 ms | 0.13 / 0.11 ms |
+| labelled slices, 16-bit | 1/192 | 0.13 / 0.15 ms | 0.28 / 0.26 ms |
 
 Byte for byte CharLS's again, and exact both ways.
 
 ```sh
+git clone --recurse-submodules https://github.com/Aegyptiacus11/codecsls-rs
 cargo test
 cargo run --release --manifest-path bench/Cargo.toml -- <folder of DICOM slices>
 ```

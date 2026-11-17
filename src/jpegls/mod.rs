@@ -17,7 +17,9 @@ mod params;
 pub use decode::{decode, Decoder};
 pub use encode::{encode, encode_interleaved};
 pub use error::Error;
-pub use many::{decode_many, encode_many};
+pub use many::{
+    decode_many, decode_many_with_threads, encode_many, encode_many_with_threads, MANY_THREADS,
+};
 
 /// The size of an image and the precision of its samples.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

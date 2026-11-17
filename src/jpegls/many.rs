@@ -5,25 +5,54 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use super::{decode, encode, Error, FrameInfo};
 
-/// [`encode`] for each of `images`, all of the size and depth of `frame`, on up to
-/// `threads` threads. The streams come back in the order of the images.
+/// How many threads [`encode_many`] and [`decode_many`] use: two, which any machine
+/// that would code a batch has. A caller that knows it has more says so with
+/// [`encode_many_with_threads`] and [`decode_many_with_threads`].
+pub const MANY_THREADS: usize = 2;
+
+/// [`encode`] for each of `images`, all of the size and depth of `frame`, on
+/// [`MANY_THREADS`] threads. The streams come back in the order of the images.
 ///
-/// With `threads` at 1 everything runs on the calling thread. On an error the rest of
-/// the batch is dropped and the error of the first image that has one is returned, as
-/// coding them one after the other would.
-pub fn encode_many<P>(frame: FrameInfo, images: &[P], threads: usize) -> Result<Vec<Vec<u8>>, Error>
+/// On an error the rest of the batch is dropped and the error of the first image that
+/// has one is returned, as coding them one after the other would.
+pub fn encode_many<P>(frame: FrameInfo, images: &[P]) -> Result<Vec<Vec<u8>>, Error>
+where
+    P: AsRef<[u8]> + Sync,
+{
+    encode_many_with_threads(frame, images, MANY_THREADS)
+}
+
+/// [`encode_many`] on up to `threads` threads; with 1, everything runs on the calling
+/// thread.
+pub fn encode_many_with_threads<P>(
+    frame: FrameInfo,
+    images: &[P],
+    threads: usize,
+) -> Result<Vec<Vec<u8>>, Error>
 where
     P: AsRef<[u8]> + Sync,
 {
     many(images, threads, |pixels| encode(frame, pixels.as_ref()))
 }
 
-/// [`decode`] for each of `streams`, on up to `threads` threads. The images come back in
+/// [`decode`] for each of `streams`, on [`MANY_THREADS`] threads. The images come back in
 /// the order of the streams, each with its own size: they need not be alike.
 ///
-/// With `threads` at 1 everything runs on the calling thread. On an error the rest of
-/// the batch is dropped and the error of the first stream that has one is returned.
-pub fn decode_many<S>(streams: &[S], threads: usize) -> Result<Vec<(FrameInfo, Vec<u8>)>, Error>
+/// On an error the rest of the batch is dropped and the error of the first stream that
+/// has one is returned.
+pub fn decode_many<S>(streams: &[S]) -> Result<Vec<(FrameInfo, Vec<u8>)>, Error>
+where
+    S: AsRef<[u8]> + Sync,
+{
+    decode_many_with_threads(streams, MANY_THREADS)
+}
+
+/// [`decode_many`] on up to `threads` threads; with 1, everything runs on the calling
+/// thread.
+pub fn decode_many_with_threads<S>(
+    streams: &[S],
+    threads: usize,
+) -> Result<Vec<(FrameInfo, Vec<u8>)>, Error>
 where
     S: AsRef<[u8]> + Sync,
 {

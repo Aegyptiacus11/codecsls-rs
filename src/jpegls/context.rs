@@ -12,6 +12,10 @@ pub(crate) struct Coding {
     /// 2 NEAR + 1: what a coded error is worth in sample values.
     pub step: i32,
     wrap: i32,
+    /// MAXVAL when the scan is lossless and RANGE a power of two, as it is unless an LSE
+    /// segment set another MAXVAL: bringing a value back into range is then keeping its
+    /// low bits. Zero otherwise.
+    low_bits: i32,
 }
 
 impl Coding {
@@ -23,12 +27,20 @@ impl Coding {
             escape: p.limit - p.qbpp - 1,
             step,
             wrap: p.range * step,
+            low_bits: if p.near == 0 && (p.maxval + 1).count_ones() == 1 {
+                p.maxval
+            } else {
+                0
+            },
         }
     }
 
     /// A prediction plus an error, brought back into the sample range (T.87 A.4.5, A.8).
     #[inline(always)]
     pub fn reconstruct(&self, value: i32) -> u16 {
+        if self.low_bits != 0 {
+            return (value & self.low_bits) as u16;
+        }
         let value = if value < -self.p.near {
             value + self.wrap
         } else if value > self.p.maxval + self.p.near {

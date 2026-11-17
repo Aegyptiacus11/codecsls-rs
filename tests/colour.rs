@@ -56,11 +56,12 @@ fn charls_encode(frame: FrameInfo, near: i32, mode: usize, pixels: &[u8]) -> Opt
 
 /// Whether CharLS decodes its own lossless stream to the image it was given.
 ///
-/// It does not always: CharLS 2.4.5 takes a pixel of four components into a run when only
-/// its fourth differs from the run by one, so the stream it writes holds another image
-/// (4 of the 335 here). Those streams are no reference for the encoder; this crate's own
-/// stream of such an image is exact, and CharLS decodes it exactly
-/// (`charls_decodes_what_we_encode`).
+/// It does not always: for an 8-bit image of four components interleaved by sample, the
+/// stream it writes can hold another image, with samples of the fourth component changed
+/// (4 of the 335 here). Seen with the CharLS this binding builds (it reports 2.4.2) and
+/// with release 2.4.5; its main branch (3.0.0, 2026-11-14) is exact on the same images.
+/// Those streams are no reference for the encoder; this crate's own stream of such an
+/// image is exact, and CharLS decodes it exactly (`charls_decodes_what_we_encode`).
 fn charls_is_exact(stream: &[u8], frame: FrameInfo, mode: Interleave, pixels: &[u8]) -> bool {
     let back = CharLS::default()
         .decode(stream)

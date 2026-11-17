@@ -61,11 +61,14 @@ every bit depth from 2 to 16, gray and of 2 to 4 components in the three interle
 - this crate decodes what CharLS encodes, lossless and near-lossless, to the samples CharLS
   decodes.
 
-Two things CharLS 2.4.5 does that this crate does not:
+Two things CharLS does that this crate does not:
 
-- its lossless stream of a 4-component image interleaved by sample can hold another image:
-  a pixel that differs from a run only by one in its fourth component is taken into the run
-  (4 of the 335 such test images). Those streams are left out of the byte comparison;
+- its lossless stream of an 8-bit image of 4 components interleaved by sample can hold
+  another image: samples of the fourth component come back changed (4 of the 335 such test
+  images, 13 to 168 samples each). Seen with the CharLS that `charls` 0.4.2 builds (it
+  reports 2.4.2) and with release 2.4.5, the newest; CharLS's main branch (3.0.0, not
+  released, 2026-11-14) is exact on the same images. Those streams are left out of the byte
+  comparison;
 - through the `charls` crate, an image that does not compress fails with "destination
   buffer too small".
 
@@ -76,7 +79,7 @@ pixels), one core of a Ryzen 7 PRO 7840U, best of 5 passes, measured 2026-11-17 
 | | Size | Encode per slice | Decode per slice |
 |---|---|---|---|
 | this crate 0.1.0 | 26.64 MB (1/3.385) | 2.69 ms | 3.17 ms |
-| CharLS 2.4.5 (`charls` 0.4.2) | 26.64 MB (1/3.385) | 3.66 ms | 3.16 ms |
+| CharLS 2.4.2 (as built by `charls` 0.4.2) | 26.64 MB (1/3.385) | 3.66 ms | 3.16 ms |
 
 The 172 streams are byte for byte those of CharLS. Colour has not been timed.
 

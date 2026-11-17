@@ -1,7 +1,7 @@
 //! The lossless encoder (T.87 annex A with NEAR = 0, annex B for several components).
 
 use super::bits::BitWriter;
-use super::context::{Coding, Contexts, Lines, Regular, Run};
+use super::context::{predict, Coding, Contexts, Lines, Regular, Run};
 use super::params::{Params, Presets, J};
 use super::{marker, Error, FrameInfo, Interleave};
 
@@ -210,28 +210,45 @@ fn encode_line(
 ) {
     lines.edges();
     let width = lines.width();
+    let quantizer = &coding.quantizer;
+    let (above, line) = (&lines.above[..width + 2], &lines.line[..width + 2]);
     let mut x = 1;
     while x <= width {
-        let q = lines.context(&coding.quantizer, x);
-        if q != 0 {
-            let (predicted, sample) = (lines.predict(x), lines.line[x]);
+        // The neighbours of the sample at x: a on its left, c b d above. From one sample
+        // to the next b becomes c and d becomes b, so only d is read and only two of the
+        // three gradients are quantized anew.
+        let mut ra = i32::from(line[x - 1]);
+        let mut rb = i32::from(above[x]);
+        let mut rc = i32::from(above[x - 1]);
+        let mut q2 = quantizer.q(rb - rc);
+        loop {
+            let rd = i32::from(above[x + 1]);
+            let q1 = quantizer.q(rd - rb);
+            let q = 81 * q1 + 9 * q2 + quantizer.q(rc - ra);
+            if q == 0 {
+                break;
+            }
+            let sample = line[x];
             regular(
                 coding,
                 &mut contexts.regular,
                 q,
-                predicted,
+                predict(ra, rb, rc),
                 sample,
                 shift,
                 w,
             );
+            (ra, rc, rb, q2) = (i32::from(sample), rb, rd, q1);
             x += 1;
-            continue;
+            if x > width {
+                return;
+            }
         }
 
         // Run mode (A.7): the samples equal to the one on the left, counted
         let start = x;
-        let left = lines.line[x - 1];
-        let rest = &lines.line[x..=width];
+        let left = line[x - 1];
+        let rest = &line[x..=width];
         x += rest
             .iter()
             .position(|&sample| sample != left)
@@ -242,9 +259,8 @@ fn encode_line(
         }
         // the sample that ended the run: predicted by the one above when it differs
         // from the run, with the error turned so that it leans one way
-        let ra = i32::from(lines.line[x - 1]);
-        let rb = i32::from(lines.above[x]);
-        let sample = i32::from(lines.line[x]);
+        let rb = i32::from(above[x]);
+        let sample = i32::from(line[x]);
         let e = if ra == rb {
             sample - ra
         } else if ra > rb {

@@ -1,7 +1,7 @@
 //! The decoder (T.87 annex A with any NEAR, annex B for several components).
 
 use super::bits::BitReader;
-use super::context::{Coding, Contexts, Lines, Regular, Run};
+use super::context::{predict, Coding, Contexts, Lines, Regular, Run};
 use super::marker::{self, Scan, Segments};
 use super::params::J;
 use super::{Error, FrameInfo, Interleave};
@@ -244,30 +244,53 @@ fn decode_line(
 ) -> Result<(), Error> {
     lines.edges();
     let width = lines.width();
+    let quantizer = &coding.quantizer;
+    let (above, line) = (&lines.above[..width + 2], &mut lines.line[..width + 2]);
     let mut x = 1;
     while x <= width {
-        let q = lines.context(&coding.quantizer, x);
-        if q != 0 {
-            lines.line[x] = regular(coding, &mut contexts.regular, q, lines.predict(x), reader)?;
+        // The neighbours of the sample at x: a on its left, c b d above. From one sample
+        // to the next b becomes c and d becomes b, so only d is read and only two of the
+        // three gradients are quantized anew.
+        let mut ra = i32::from(line[x - 1]);
+        let mut rb = i32::from(above[x]);
+        let mut rc = i32::from(above[x - 1]);
+        let mut q2 = quantizer.q(rb - rc);
+        loop {
+            let rd = i32::from(above[x + 1]);
+            let q1 = quantizer.q(rd - rb);
+            let q = 81 * q1 + 9 * q2 + quantizer.q(rc - ra);
+            if q == 0 {
+                break;
+            }
+            let sample = regular(
+                coding,
+                &mut contexts.regular,
+                q,
+                predict(ra, rb, rc),
+                reader,
+            )?;
+            line[x] = sample;
+            (ra, rc, rb, q2) = (i32::from(sample), rb, rd, q1);
             x += 1;
-            continue;
+            if x > width {
+                return Ok(());
+            }
         }
 
         // Run mode (A.7): the sample on the left, repeated
-        let left = lines.line[x - 1];
+        let left = line[x - 1];
         loop {
             let (count, interrupted) = run_piece(x, width, run_index, reader)?;
-            lines.line[x..x + count].fill(left);
+            line[x..x + count].fill(left);
             x += count;
             if interrupted {
                 // predicted by the sample above when it differs from the run, with the
                 // error turned so that it leans one way
-                let ra = i32::from(left);
-                let rb = i32::from(lines.above[x]);
+                let rb = i32::from(above[x]);
                 let agree = (ra - rb).abs() <= coding.p.near;
                 let ctx = &mut contexts.run[usize::from(agree)];
                 let e = interruption(coding, ctx, *run_index, reader)?;
-                lines.line[x] = coding.reconstruct(if agree {
+                line[x] = coding.reconstruct(if agree {
                     ra + e
                 } else if ra > rb {
                     rb - e

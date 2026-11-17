@@ -88,7 +88,7 @@ fn encodes_the_bytes_charls_does() {
                 continue;
             }
             assert!(
-                stream == theirs,
+                common::same_stream(&stream, &theirs),
                 "{name} {ours:?}: {} bytes against CharLS's {}",
                 stream.len(),
                 theirs.len()

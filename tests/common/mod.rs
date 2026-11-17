@@ -205,3 +205,21 @@ pub fn images() -> Vec<(String, FrameInfo, Vec<u8>)> {
     }
     all
 }
+
+/// Whether the encoder's stream is CharLS's, byte for byte.
+///
+/// Above 12 bits this crate writes the coding parameters out in an LSE segment, as
+/// CharLS 2 does; CharLS 3 leaves the 15 bytes out, the parameters being the defaults.
+/// Against that one, the streams are compared without the segment.
+pub fn same_stream(ours: &[u8], theirs: &[u8]) -> bool {
+    if ours == theirs {
+        return true;
+    }
+    let lse = [0xFF, 0xF8, 0, 13, 1];
+    let Some(at) = ours.windows(lse.len()).position(|window| window == lse) else {
+        return false;
+    };
+    theirs.windows(lse.len()).all(|window| window != lse)
+        && ours[..at] == theirs[..at]
+        && ours[at + 15..] == theirs[at..]
+}

@@ -20,7 +20,7 @@ const NAMES: [&str; 4] = ["jpegls (this crate)", "charls", "pure_jpegls", "dicom
 fn encode(codec: usize, s: &Slice) -> Result<Vec<u8>, String> {
     match codec {
         0 => jpegls::encode(
-            jpegls::FrameInfo { width: s.cols, height: s.rows, bits_per_sample: s.bits },
+            jpegls::FrameInfo { width: s.cols, height: s.rows, bits_per_sample: s.bits, components: 1 },
             &s.native,
         )
         .map_err(|e| e.to_string()),

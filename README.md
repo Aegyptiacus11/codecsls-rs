@@ -11,7 +11,7 @@ dependencies.
 ```rust
 use jpegls::{decode, encode, FrameInfo};
 
-let frame = FrameInfo { width: 512, height: 512, bits_per_sample: 16 };
+let frame = FrameInfo { width: 512, height: 512, bits_per_sample: 16, components: 1 };
 let pixels = vec![0u8; frame.byte_len()];
 let stream = encode(frame, &pixels)?;
 let (same_frame, same_pixels) = decode(&stream)?;
@@ -23,7 +23,7 @@ The size of an image comes from its stream. A caller that knows what to expect r
 headers first and compares:
 
 ```rust
-# let frame = jpegls::FrameInfo { width: 4, height: 4, bits_per_sample: 8 };
+# let frame = jpegls::FrameInfo { width: 4, height: 4, bits_per_sample: 8, components: 1 };
 # let stream = jpegls::encode(frame, &[0; 16])?;
 let decoder = jpegls::Decoder::new(&stream)?;
 assert_eq!(decoder.frame(), frame);

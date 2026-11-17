@@ -7,10 +7,14 @@
 
 mod bits;
 mod context;
+mod decode;
+mod encode;
 mod error;
 mod marker;
 mod params;
 
+pub use decode::{decode, Decoder};
+pub use encode::encode;
 pub use error::Error;
 
 /// The size of an image and the precision of its samples.

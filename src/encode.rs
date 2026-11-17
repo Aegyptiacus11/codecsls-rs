@@ -38,8 +38,8 @@ fn load(row: &[u8], line: &mut [u16], maxval: i32) -> Result<(), Error> {
             any |= *sample;
         }
     } else {
-        for (sample, bytes) in line.iter_mut().zip(row.chunks_exact(2)) {
-            *sample = u16::from_le_bytes([bytes[0], bytes[1]]);
+        for (sample, bytes) in line.iter_mut().zip(row.as_chunks::<2>().0) {
+            *sample = u16::from_le_bytes(*bytes);
             any |= *sample;
         }
     }

@@ -1,5 +1,7 @@
 # codecsls
 
+[![crates.io](https://img.shields.io/crates/v/codecsls)](https://crates.io/crates/codecsls) [![CI](https://github.com/Aegyptiacus11/codecsls-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Aegyptiacus11/codecsls-rs/actions/workflows/ci.yml) [![Minimum Rust version](https://img.shields.io/badge/MSRV-1.88-blue)](Cargo.toml) [![Dependencies](https://deps.rs/crate/codecsls/latest/status.svg)](https://deps.rs/crate/codecsls) [![docs.rs](https://img.shields.io/docsrs/codecsls)](https://docs.rs/codecsls) [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#licence)
+
 Lossless image codecs, in safe Rust with no dependencies. One so far:
 JPEG-LS (ITU-T T.87 | ISO/IEC 14495-1), as `codecsls::jpegls`.
 

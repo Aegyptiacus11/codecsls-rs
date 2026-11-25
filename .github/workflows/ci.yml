@@ -15,7 +15,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # github.workflow is "release" when release.yml calls this
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -32,8 +33,11 @@ jobs:
       - name: Toolchain (rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-      - name: The release's tag check
-        run: .github/scripts/test-check-tag.sh
+      - name: The release's checks
+        run: |
+          set -euo pipefail
+          .github/scripts/test-check-tag.sh
+          .github/scripts/test-concurrency.sh
       - name: Formatting, of the crate, the CharLS binding and the benchmark
         run: |
           set -euo pipefail

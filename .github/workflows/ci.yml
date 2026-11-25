@@ -38,6 +38,7 @@ jobs:
           set -euo pipefail
           .github/scripts/test-check-tag.sh
           .github/scripts/test-concurrency.sh
+          .github/scripts/test-github-release.sh
       - name: Formatting, of the crate, the CharLS binding and the benchmark
         run: |
           set -euo pipefail
